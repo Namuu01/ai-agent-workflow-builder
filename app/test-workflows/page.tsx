@@ -4,7 +4,12 @@ import { useState } from "react";
 import {
   createWorkflow,
   updateWorkflow,
-} from "./lib/graphql/workflows";
+} from "../lib/graphql/workflows";
+import {
+  createWorkflowStep,
+  deleteWorkflowStep,
+  updateWorkflowStep,
+} from "../lib/graphql/workflowSteps";
 
 type Step = {
   id?: string;
@@ -31,35 +36,30 @@ const STEP_INFO: Record<
     description:
       "Use an AI model to generate or transform content.",
   },
-
   http_request: {
     label: "HTTP Request",
     badge: "API",
     description:
       "Call an external API or service.",
   },
-
   conditional_branch: {
     label: "Conditional",
     badge: "IF",
     description:
       "Branch the workflow based on a condition.",
   },
-
   approval_gate: {
     label: "Approval",
     badge: "OK",
     description:
       "Pause until a human approves the next action.",
   },
-
   db_write: {
     label: "Database Write",
     badge: "DB",
     description:
       "Write workflow data to the database.",
   },
-
   notify: {
     label: "Notification",
     badge: "NT",
@@ -68,9 +68,7 @@ const STEP_INFO: Record<
   },
 };
 
-function getDefaultConfig(
-  type: string
-): Record<string, any> {
+function getDefaultConfig(type: string): Record<string, any> {
   switch (type) {
     case "llm_call":
       return {
@@ -117,26 +115,24 @@ function getDefaultConfig(
 
 export default function WorkflowBuilderPage() {
   const [workflowId, setWorkflowId] = useState("");
-
   const [workflowName, setWorkflowName] =
     useState("My First Workflow");
-
   const [workflowDescription, setWorkflowDescription] =
     useState("");
 
   const [steps, setSteps] = useState<Step[]>([]);
-
   const [selectedStep, setSelectedStep] =
     useState<number | null>(null);
 
   const [loading, setLoading] = useState(false);
-
   const [running, setRunning] = useState(false);
-
   const [message, setMessage] = useState("");
-
   const [runResult, setRunResult] =
     useState<any>(null);
+
+  // -----------------------------------------
+  // ADD STEP
+  // -----------------------------------------
 
   function addStep() {
     const newIndex = steps.length;
@@ -156,6 +152,10 @@ export default function WorkflowBuilderPage() {
     setSelectedStep(newIndex);
     setMessage("");
   }
+
+  // -----------------------------------------
+  // UPDATE LOCAL STEP
+  // -----------------------------------------
 
   function updateLocalStep(
     index: number,
@@ -178,6 +178,10 @@ export default function WorkflowBuilderPage() {
     });
   }
 
+  // -----------------------------------------
+  // UPDATE STEP CONFIG
+  // -----------------------------------------
+
   function updateStepConfig(
     index: number,
     config: Record<string, any>
@@ -197,6 +201,10 @@ export default function WorkflowBuilderPage() {
       return updated;
     });
   }
+
+  // -----------------------------------------
+  // CHANGE STEP TYPE
+  // -----------------------------------------
 
   function changeStepType(
     index: number,
@@ -218,6 +226,10 @@ export default function WorkflowBuilderPage() {
       return updated;
     });
   }
+
+  // -----------------------------------------
+  // REMOVE STEP
+  // -----------------------------------------
 
   function removeStep(index: number) {
     const updated = steps
@@ -246,6 +258,10 @@ export default function WorkflowBuilderPage() {
     }
   }
 
+  // -----------------------------------------
+  // MOVE STEP UP
+  // -----------------------------------------
+
   function moveStepUp(index: number) {
     if (index === 0) {
       return;
@@ -253,20 +269,15 @@ export default function WorkflowBuilderPage() {
 
     const updated = [...steps];
 
-    [
-      updated[index - 1],
-      updated[index],
-    ] = [
+    [updated[index - 1], updated[index]] = [
       updated[index],
       updated[index - 1],
     ];
 
-    const reordered = updated.map(
-      (step, i) => ({
-        ...step,
-        step_order: i + 1,
-      })
-    );
+    const reordered = updated.map((step, i) => ({
+      ...step,
+      step_order: i + 1,
+    }));
 
     setSteps(reordered);
 
@@ -277,6 +288,10 @@ export default function WorkflowBuilderPage() {
     }
   }
 
+  // -----------------------------------------
+  // MOVE STEP DOWN
+  // -----------------------------------------
+
   function moveStepDown(index: number) {
     if (index === steps.length - 1) {
       return;
@@ -284,20 +299,15 @@ export default function WorkflowBuilderPage() {
 
     const updated = [...steps];
 
-    [
-      updated[index],
-      updated[index + 1],
-    ] = [
+    [updated[index], updated[index + 1]] = [
       updated[index + 1],
       updated[index],
     ];
 
-    const reordered = updated.map(
-      (step, i) => ({
-        ...step,
-        step_order: i + 1,
-      })
-    );
+    const reordered = updated.map((step, i) => ({
+      ...step,
+      step_order: i + 1,
+    }));
 
     setSteps(reordered);
 
@@ -307,6 +317,10 @@ export default function WorkflowBuilderPage() {
       setSelectedStep(index);
     }
   }
+
+  // -----------------------------------------
+  // SAVE WORKFLOW
+  // -----------------------------------------
 
   async function saveWorkflow() {
     if (!workflowName.trim()) {
@@ -330,12 +344,11 @@ export default function WorkflowBuilderPage() {
       let currentWorkflowId = workflowId;
 
       if (!currentWorkflowId) {
-        const workflow =
-          await createWorkflow(
-            ORGANIZATION_ID,
-            workflowName,
-            workflowDescription
-          );
+        const workflow = await createWorkflow(
+          ORGANIZATION_ID,
+          workflowName,
+          workflowDescription
+        );
 
         if (!workflow) {
           throw new Error(
@@ -355,27 +368,46 @@ export default function WorkflowBuilderPage() {
         );
       }
 
-      /*
-       * Step persistence is intentionally kept
-       * local for now because your project currently
-       * does not contain:
-       *
-       * app/lib/graphql/workflowSteps.ts
-       *
-       * The workflow itself is saved successfully.
-       */
+      const savedSteps: Step[] = [];
+
+      for (const step of steps) {
+        if (step.id) {
+          await updateWorkflowStep(
+            step.id,
+            step.step_order,
+            step.name,
+            step.type,
+            step.config
+          );
+
+          savedSteps.push(step);
+        } else {
+          const createdStep =
+            await createWorkflowStep(
+              currentWorkflowId,
+              step.step_order,
+              step.name,
+              step.type,
+              step.config
+            );
+
+          savedSteps.push({
+            ...step,
+            id: createdStep?.id,
+          });
+        }
+      }
+
+      setSteps(savedSteps);
 
       setMessage(
-        `✅ WORKFLOW SAVED
+        `✅ WORKFLOW SAVED SUCCESSFULLY
 
 Workflow ID:
 ${currentWorkflowId}
 
-Steps configured:
-${steps.length}
-
-Note:
-Step mutation functions have not been connected yet.`
+Steps:
+${savedSteps.length}`
       );
     } catch (error: any) {
       console.error(
@@ -392,6 +424,10 @@ ${error?.message ?? String(error)}`
       setLoading(false);
     }
   }
+
+  // -----------------------------------------
+  // RUN WORKFLOW
+  // -----------------------------------------
 
   async function runWorkflow() {
     if (steps.length === 0) {
@@ -444,8 +480,13 @@ ${error?.message ?? String(error)}`
           "application/json"
         )
       ) {
+        console.error(
+          "Workflow API returned non-JSON:",
+          responseText
+        );
+
         throw new Error(
-          `Run API returned non-JSON. HTTP ${response.status}. Check that /api/workflows/run exists.`
+          `Run API returned HTML/non-JSON instead of JSON. HTTP ${response.status}. Check that /api/workflows/run exists.`
         );
       }
 
@@ -454,6 +495,11 @@ ${error?.message ?? String(error)}`
       try {
         data = JSON.parse(responseText);
       } catch {
+        console.error(
+          "Invalid JSON returned by workflow API:",
+          responseText
+        );
+
         throw new Error(
           "Workflow API returned invalid JSON."
         );
@@ -479,11 +525,7 @@ ${error?.message ?? String(error)}`
         `✅ WORKFLOW EXECUTED SUCCESSFULLY
 
 Steps executed:
-${
-  data?.results?.length ??
-  data?.execution_log?.length ??
-  steps.length
-}`
+${data?.results?.length ?? data?.execution_log?.length ?? 0}`
       );
     } catch (error: any) {
       console.error(
@@ -503,6 +545,38 @@ ${error?.message ?? String(error)}`
     }
   }
 
+  // -----------------------------------------
+  // DELETE STEP
+  // -----------------------------------------
+
+  async function deleteStep(index: number) {
+    const step = steps[index];
+
+    setLoading(true);
+
+    try {
+      if (step?.id) {
+        await deleteWorkflowStep(step.id);
+      }
+
+      removeStep(index);
+
+      setMessage("✅ Step removed.");
+    } catch (error: any) {
+      setMessage(
+        `❌ STEP DELETE FAILED
+
+${error?.message ?? String(error)}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // -----------------------------------------
+  // SELECTED STEP
+  // -----------------------------------------
+
   const selected =
     selectedStep !== null
       ? steps[selectedStep]
@@ -510,17 +584,19 @@ ${error?.message ?? String(error)}`
 
   const statusIsError =
     message.includes("❌") ||
-    message
-      .toLowerCase()
-      .includes("required") ||
-    message
-      .toLowerCase()
-      .includes("failed");
+    message.toLowerCase().includes("required") ||
+    message.toLowerCase().includes("failed");
+
+  // -----------------------------------------
+  // UI
+  // -----------------------------------------
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] text-slate-950">
       <div className="min-h-screen bg-[radial-gradient(circle_at_10%_0%,rgba(99,102,241,0.10),transparent_28%),radial-gradient(circle_at_90%_0%,rgba(14,165,233,0.08),transparent_24%)]">
         <div className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+
+          {/* HEADER */}
 
           <header className="mb-5 rounded-[28px] border border-slate-200/80 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.07)] backdrop-blur">
             <div className="flex flex-col gap-5 px-5 py-5 sm:px-7 lg:flex-row lg:items-center lg:justify-between">
@@ -594,6 +670,8 @@ ${error?.message ?? String(error)}`
             </div>
           </header>
 
+          {/* WORKFLOW DETAILS */}
+
           <section className="mb-5 rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_12px_45px_rgba(15,23,42,0.05)] sm:p-7">
 
             <div className="mb-5">
@@ -620,9 +698,7 @@ ${error?.message ?? String(error)}`
                 <input
                   value={workflowName}
                   onChange={(e) =>
-                    setWorkflowName(
-                      e.target.value
-                    )
+                    setWorkflowName(e.target.value)
                   }
                   placeholder="e.g. Customer Support Automation"
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
@@ -649,7 +725,11 @@ ${error?.message ?? String(error)}`
             </div>
           </section>
 
+          {/* BUILDER */}
+
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.8fr)]">
+
+            {/* WORKFLOW STEPS */}
 
             <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-[0_12px_45px_rgba(15,23,42,0.05)] sm:p-7">
 
@@ -706,184 +786,155 @@ ${error?.message ?? String(error)}`
               ) : (
                 <div className="space-y-2">
 
-                  {steps.map(
-                    (step, index) => {
-                      const info =
-                        STEP_INFO[
-                          step.type
-                        ] ??
-                        STEP_INFO.llm_call;
+                  {steps.map((step, index) => {
+                    const info =
+                      STEP_INFO[step.type] ??
+                      STEP_INFO.llm_call;
 
-                      const active =
-                        selectedStep ===
-                        index;
+                    const active =
+                      selectedStep === index;
 
-                      return (
+                    return (
+                      <div
+                        key={
+                          step.id ??
+                          `step-${index}`
+                        }
+                      >
+
                         <div
-                          key={
-                            step.id ??
-                            `step-${index}`
-                          }
+                          className={`rounded-2xl border p-4 transition-all ${
+                            active
+                              ? "border-indigo-300 bg-indigo-50/70 shadow-md shadow-indigo-100"
+                              : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
+                          }`}
                         >
 
-                          <div
-                            className={`rounded-2xl border p-4 transition-all ${
-                              active
-                                ? "border-indigo-300 bg-indigo-50/70 shadow-md shadow-indigo-100"
-                                : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
-                            }`}
-                          >
+                          <div className="flex items-center gap-3">
 
-                            <div className="flex items-center gap-3">
+                            <button
+                              onClick={() =>
+                                setSelectedStep(index)
+                              }
+                              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xs font-black ${
+                                active
+                                  ? "bg-indigo-600 text-white"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {String(
+                                index + 1
+                              ).padStart(2, "0")}
+                            </button>
 
-                              <button
-                                onClick={() =>
-                                  setSelectedStep(
-                                    index
-                                  )
-                                }
-                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xs font-black ${
-                                  active
-                                    ? "bg-indigo-600 text-white"
-                                    : "bg-slate-100 text-slate-600"
-                                }`}
-                              >
-                                {String(
-                                  index + 1
-                                ).padStart(
-                                  2,
-                                  "0"
-                                )}
-                              </button>
+                            <div className="min-w-0 flex-1">
 
-                              <div className="min-w-0 flex-1">
-
-                                <input
-                                  value={
-                                    step.name
-                                  }
-                                  onChange={(
-                                    e
-                                  ) =>
-                                    updateLocalStep(
-                                      index,
-                                      "name",
-                                      e.target
-                                        .value
-                                    )
-                                  }
-                                  disabled={
-                                    loading ||
-                                    running
-                                  }
-                                  className="w-full bg-transparent text-sm font-black outline-none disabled:opacity-50"
-                                />
-
-                                <div className="mt-1.5 flex items-center gap-2">
-
-                                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-indigo-600">
-                                    {
-                                      info.badge
-                                    }
-                                  </span>
-
-                                  <span className="text-xs font-semibold text-slate-500">
-                                    {
-                                      info.label
-                                    }
-                                  </span>
-
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1">
-
-                                <button
-                                  onClick={() =>
-                                    moveStepUp(
-                                      index
-                                    )
-                                  }
-                                  disabled={
-                                    index ===
-                                      0 ||
-                                    loading ||
-                                    running
-                                  }
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-25"
-                                  title="Move up"
-                                >
-                                  ↑
-                                </button>
-
-                                <button
-                                  onClick={() =>
-                                    moveStepDown(
-                                      index
-                                    )
-                                  }
-                                  disabled={
-                                    index ===
-                                      steps.length -
-                                        1 ||
-                                    loading ||
-                                    running
-                                  }
-                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-25"
-                                  title="Move down"
-                                >
-                                  ↓
-                                </button>
-
-                              </div>
-                            </div>
-
-                            <div className="mt-3 flex items-center justify-between border-t border-slate-200/70 pt-3">
-
-                              <button
-                                onClick={() =>
-                                  setSelectedStep(
-                                    index
-                                  )
-                                }
-                                className="text-xs font-black text-indigo-600 hover:text-indigo-800"
-                              >
-                                {active
-                                  ? "Editing step"
-                                  : "Configure step →"}
-                              </button>
-
-                              <button
-                                onClick={() =>
-                                  removeStep(
-                                    index
+                              <input
+                                value={step.name}
+                                onChange={(e) =>
+                                  updateLocalStep(
+                                    index,
+                                    "name",
+                                    e.target.value
                                   )
                                 }
                                 disabled={
                                   loading ||
                                   running
                                 }
-                                className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-rose-500 hover:bg-rose-50 disabled:opacity-40"
+                                className="w-full bg-transparent text-sm font-black outline-none disabled:opacity-50"
+                              />
+
+                              <div className="mt-1.5 flex items-center gap-2">
+
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-indigo-600">
+                                  {info.badge}
+                                </span>
+
+                                <span className="text-xs font-semibold text-slate-500">
+                                  {info.label}
+                                </span>
+
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+
+                              <button
+                                onClick={() =>
+                                  moveStepUp(index)
+                                }
+                                disabled={
+                                  index === 0 ||
+                                  loading ||
+                                  running
+                                }
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-25"
+                                title="Move up"
                               >
-                                Delete
+                                ↑
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  moveStepDown(index)
+                                }
+                                disabled={
+                                  index ===
+                                    steps.length - 1 ||
+                                  loading ||
+                                  running
+                                }
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 disabled:opacity-25"
+                                title="Move down"
+                              >
+                                ↓
                               </button>
 
                             </div>
                           </div>
 
-                          {index <
-                            steps.length -
-                              1 && (
-                            <div className="ml-6 h-3 border-l border-dashed border-slate-300" />
-                          )}
+                          <div className="mt-3 flex items-center justify-between border-t border-slate-200/70 pt-3">
+
+                            <button
+                              onClick={() =>
+                                setSelectedStep(index)
+                              }
+                              className="text-xs font-black text-indigo-600 hover:text-indigo-800"
+                            >
+                              {active
+                                ? "Editing step"
+                                : "Configure step →"}
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                deleteStep(index)
+                              }
+                              disabled={
+                                loading ||
+                                running
+                              }
+                              className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-rose-500 hover:bg-rose-50 disabled:opacity-40"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </div>
-                      );
-                    }
-                  )}
+
+                        {index <
+                          steps.length - 1 && (
+                          <div className="ml-6 h-3 border-l border-dashed border-slate-300" />
+                        )}
+                      </div>
+                    );
+                  })}
 
                 </div>
               )}
             </section>
+
+            {/* CONFIGURATION */}
 
             <section className="lg:sticky lg:top-5 lg:self-start">
 
@@ -920,22 +971,19 @@ ${error?.message ?? String(error)}`
                 ) : (
                   <div className="mt-6 space-y-5">
 
+                    {/* STEP HEADER */}
+
                     <div className="rounded-2xl bg-slate-950 p-4 text-white">
 
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
                         Step{" "}
                         {String(
                           selectedStep! + 1
-                        ).padStart(
-                          2,
-                          "0"
-                        )}
+                        ).padStart(2, "0")}
                       </div>
 
                       <div className="mt-1 text-lg font-black">
-                        {
-                          selected.name
-                        }
+                        {selected.name}
                       </div>
 
                       <div className="mt-1 text-xs text-slate-400">
@@ -948,6 +996,8 @@ ${error?.message ?? String(error)}`
 
                     </div>
 
+                    {/* STEP TYPE */}
+
                     <label className="block">
 
                       <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
@@ -955,9 +1005,7 @@ ${error?.message ?? String(error)}`
                       </span>
 
                       <select
-                        value={
-                          selected.type
-                        }
+                        value={selected.type}
                         onChange={(e) =>
                           changeStepType(
                             selectedStep!,
@@ -996,6 +1044,8 @@ ${error?.message ?? String(error)}`
                       </select>
                     </label>
 
+                    {/* LLM CONFIG */}
+
                     {selected.type ===
                       "llm_call" && (
                       <div className="space-y-4">
@@ -1008,8 +1058,7 @@ ${error?.message ?? String(error)}`
 
                           <select
                             value={
-                              selected.config
-                                ?.model ??
+                              selected.config?.model ??
                               "llama-3.3-70b-versatile"
                             }
                             onChange={(e) =>
@@ -1018,14 +1067,11 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   model:
-                                    e.target
-                                      .value,
+                                    e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-bold outline-none"
                           >
                             <option value="llama-3.3-70b-versatile">
@@ -1043,8 +1089,7 @@ ${error?.message ?? String(error)}`
                           <textarea
                             value={
                               selected.config
-                                ?.system_prompt ??
-                              ""
+                                ?.system_prompt ?? ""
                             }
                             onChange={(e) =>
                               updateStepConfig(
@@ -1052,14 +1097,11 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   system_prompt:
-                                    e.target
-                                      .value,
+                                    e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             rows={4}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white disabled:opacity-50"
                             placeholder="You are a helpful AI assistant."
@@ -1075,8 +1117,7 @@ ${error?.message ?? String(error)}`
                           <textarea
                             value={
                               selected.config
-                                ?.user_prompt ??
-                              ""
+                                ?.user_prompt ?? ""
                             }
                             onChange={(e) =>
                               updateStepConfig(
@@ -1084,14 +1125,11 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   user_prompt:
-                                    e.target
-                                      .value,
+                                    e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             rows={5}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:bg-white disabled:opacity-50"
                             placeholder="Write a short paragraph about artificial intelligence."
@@ -1111,8 +1149,7 @@ ${error?.message ?? String(error)}`
                             step="0.1"
                             value={
                               selected.config
-                                ?.temperature ??
-                              0.7
+                                ?.temperature ?? 0.7
                             }
                             onChange={(e) =>
                               updateStepConfig(
@@ -1121,15 +1158,12 @@ ${error?.message ?? String(error)}`
                                   ...selected.config,
                                   temperature:
                                     Number(
-                                      e.target
-                                        .value
+                                      e.target.value
                                     ),
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:opacity-50"
                           />
                         </label>
@@ -1145,8 +1179,7 @@ ${error?.message ?? String(error)}`
                             min="1"
                             value={
                               selected.config
-                                ?.max_tokens ??
-                              1000
+                                ?.max_tokens ?? 1000
                             }
                             onChange={(e) =>
                               updateStepConfig(
@@ -1155,21 +1188,20 @@ ${error?.message ?? String(error)}`
                                   ...selected.config,
                                   max_tokens:
                                     Number(
-                                      e.target
-                                        .value
+                                      e.target.value
                                     ),
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:opacity-50"
                           />
                         </label>
 
                       </div>
                     )}
+
+                    {/* HTTP CONFIG */}
 
                     {selected.type ===
                       "http_request" && (
@@ -1183,8 +1215,7 @@ ${error?.message ?? String(error)}`
 
                           <select
                             value={
-                              selected.config
-                                ?.method ??
+                              selected.config?.method ??
                               "GET"
                             }
                             onChange={(e) =>
@@ -1193,28 +1224,29 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   method:
-                                    e.target
-                                      .value,
+                                    e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none"
+                            disabled={running}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none disabled:opacity-50"
                           >
                             <option value="GET">
                               GET
                             </option>
+
                             <option value="POST">
                               POST
                             </option>
+
                             <option value="PUT">
                               PUT
                             </option>
+
                             <option value="PATCH">
                               PATCH
                             </option>
+
                             <option value="DELETE">
                               DELETE
                             </option>
@@ -1229,8 +1261,7 @@ ${error?.message ?? String(error)}`
 
                           <input
                             value={
-                              selected.config
-                                ?.url ??
+                              selected.config?.url ??
                               ""
                             }
                             onChange={(e) =>
@@ -1238,16 +1269,13 @@ ${error?.message ?? String(error)}`
                                 selectedStep!,
                                 {
                                   ...selected.config,
-                                  url: e.target
-                                    .value,
+                                  url: e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             placeholder="https://api.example.com"
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:opacity-50"
                           />
                         </label>
 
@@ -1255,26 +1283,22 @@ ${error?.message ?? String(error)}`
                           label="Headers JSON"
                           value={
                             selected.config
-                              ?.headers ??
-                            {}
+                              ?.headers ?? {}
                           }
-                          disabled={
-                            running
-                          }
+                          disabled={running}
                           rows={4}
                           onChange={(value) =>
                             updateStepConfig(
                               selectedStep!,
                               {
                                 ...selected.config,
-                                headers:
-                                  value,
+                                headers: value,
                               }
                             )
                           }
-                          onError={(error) =>
+                          onError={(message) =>
                             setMessage(
-                              `❌ ${error}`
+                              `❌ ${message}`
                             )
                           }
                         />
@@ -1282,12 +1306,10 @@ ${error?.message ?? String(error)}`
                         <JsonEditor
                           label="Body JSON"
                           value={
-                            selected.config
-                              ?.body ?? {}
+                            selected.config?.body ??
+                            {}
                           }
-                          disabled={
-                            running
-                          }
+                          disabled={running}
                           rows={5}
                           onChange={(value) =>
                             updateStepConfig(
@@ -1298,15 +1320,17 @@ ${error?.message ?? String(error)}`
                               }
                             )
                           }
-                          onError={(error) =>
+                          onError={(message) =>
                             setMessage(
-                              `❌ ${error}`
+                              `❌ ${message}`
                             )
                           }
                         />
 
                       </div>
                     )}
+
+                    {/* CONDITIONAL CONFIG */}
 
                     {selected.type ===
                       "conditional_branch" && (
@@ -1321,8 +1345,7 @@ ${error?.message ?? String(error)}`
                           <input
                             value={
                               selected.config
-                                ?.condition ??
-                              ""
+                                ?.condition ?? ""
                             }
                             onChange={(e) =>
                               updateStepConfig(
@@ -1330,33 +1353,31 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   condition:
-                                    e.target
-                                      .value,
+                                    e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             placeholder="result.length > 300"
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono outline-none"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono outline-none disabled:opacity-50"
                           />
+
+                          <p className="mt-2 text-xs text-slate-400">
+                            Example: result.length &gt; 300
+                          </p>
                         </label>
 
                         <StepSelector
                           label="True step"
                           value={
                             selected.config
-                              ?.true_step ??
-                            ""
+                              ?.true_step ?? ""
                           }
                           steps={steps}
                           currentIndex={
                             selectedStep!
                           }
-                          disabled={
-                            running
-                          }
+                          disabled={running}
                           onChange={(value) =>
                             updateStepConfig(
                               selectedStep!,
@@ -1364,9 +1385,7 @@ ${error?.message ?? String(error)}`
                                 ...selected.config,
                                 true_step:
                                   value
-                                    ? Number(
-                                        value
-                                      )
+                                    ? Number(value)
                                     : null,
                               }
                             )
@@ -1377,16 +1396,13 @@ ${error?.message ?? String(error)}`
                           label="False step"
                           value={
                             selected.config
-                              ?.false_step ??
-                            ""
+                              ?.false_step ?? ""
                           }
                           steps={steps}
                           currentIndex={
                             selectedStep!
                           }
-                          disabled={
-                            running
-                          }
+                          disabled={running}
                           onChange={(value) =>
                             updateStepConfig(
                               selectedStep!,
@@ -1394,9 +1410,7 @@ ${error?.message ?? String(error)}`
                                 ...selected.config,
                                 false_step:
                                   value
-                                    ? Number(
-                                        value
-                                      )
+                                    ? Number(value)
                                     : null,
                               }
                             )
@@ -1405,6 +1419,8 @@ ${error?.message ?? String(error)}`
 
                       </div>
                     )}
+
+                    {/* APPROVAL CONFIG */}
 
                     {selected.type ===
                       "approval_gate" && (
@@ -1418,8 +1434,7 @@ ${error?.message ?? String(error)}`
 
                           <input
                             value={
-                              selected.config
-                                ?.title ??
+                              selected.config?.title ??
                               "Approval required"
                             }
                             onChange={(e) =>
@@ -1428,15 +1443,12 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   title:
-                                    e.target
-                                      .value,
+                                    e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
+                            disabled={running}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:opacity-50"
                           />
                         </label>
 
@@ -1448,8 +1460,7 @@ ${error?.message ?? String(error)}`
 
                           <textarea
                             value={
-                              selected.config
-                                ?.message ??
+                              selected.config?.message ??
                               "Please review this result."
                             }
                             onChange={(e) =>
@@ -1458,16 +1469,13 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   message:
-                                    e.target
-                                      .value,
+                                    e.target.value,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             rows={4}
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:opacity-50"
                           />
                         </label>
 
@@ -1480,8 +1488,7 @@ ${error?.message ?? String(error)}`
                           <input
                             value={
                               selected.config
-                                ?.approver ??
-                              ""
+                                ?.approver ?? ""
                             }
                             onChange={(e) =>
                               updateStepConfig(
@@ -1489,17 +1496,14 @@ ${error?.message ?? String(error)}`
                                 {
                                   ...selected.config,
                                   approver:
-                                    e.target
-                                      .value ||
+                                    e.target.value ||
                                     null,
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
+                            disabled={running}
                             placeholder="Approver ID or email"
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:opacity-50"
                           />
                         </label>
 
@@ -1514,8 +1518,7 @@ ${error?.message ?? String(error)}`
                             min="1"
                             value={
                               selected.config
-                                ?.timeout_hours ??
-                              24
+                                ?.timeout_hours ?? 24
                             }
                             onChange={(e) =>
                               updateStepConfig(
@@ -1524,21 +1527,20 @@ ${error?.message ?? String(error)}`
                                   ...selected.config,
                                   timeout_hours:
                                     Number(
-                                      e.target
-                                        .value
+                                      e.target.value
                                     ),
                                 }
                               )
                             }
-                            disabled={
-                              running
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none"
+                            disabled={running}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none disabled:opacity-50"
                           />
                         </label>
 
                       </div>
                     )}
+
+                    {/* DB WRITE */}
 
                     {selected.type ===
                       "db_write" && (
@@ -1547,6 +1549,8 @@ ${error?.message ?? String(error)}`
                       </div>
                     )}
 
+                    {/* NOTIFY */}
+
                     {selected.type ===
                       "notify" && (
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
@@ -1554,11 +1558,16 @@ ${error?.message ?? String(error)}`
                       </div>
                     )}
 
+                    <p className="text-xs leading-5 text-slate-400">
+                      Changes stay local until you save the workflow.
+                    </p>
                   </div>
                 )}
               </div>
             </section>
           </div>
+
+          {/* RUN RESULT */}
 
           {runResult && (
             <section className="mt-5 rounded-[28px] border border-emerald-200 bg-white p-5 shadow-[0_12px_45px_rgba(15,23,42,0.05)] sm:p-7">
@@ -1573,6 +1582,10 @@ ${error?.message ?? String(error)}`
                   <h2 className="mt-1 text-xl font-black tracking-tight">
                     Workflow completed
                   </h2>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    The workflow executed using the current steps.
+                  </p>
                 </div>
 
                 <button
@@ -1593,7 +1606,7 @@ ${error?.message ?? String(error)}`
                     Final output
                   </div>
 
-                  <div className="rounded-2xl bg-slate-950 p-5 text-sm leading-7 text-emerald-300">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-sm leading-7 text-emerald-300">
 
                     <pre className="whitespace-pre-wrap break-words font-sans">
                       {typeof runResult.result ===
@@ -1636,22 +1649,15 @@ ${error?.message ?? String(error)}`
                             <div className="flex flex-wrap items-center gap-2">
 
                               <span className="rounded-lg bg-indigo-100 px-2.5 py-1 text-[10px] font-black uppercase text-indigo-700">
-                                Step{" "}
-                                {
-                                  log.step
-                                }
+                                Step {log.step}
                               </span>
 
                               <span className="text-sm font-black text-slate-800">
-                                {
-                                  log.name
-                                }
+                                {log.name}
                               </span>
 
                               <span className="rounded-lg bg-white px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 ring-1 ring-slate-200">
-                                {
-                                  log.type
-                                }
+                                {log.type}
                               </span>
 
                             </div>
@@ -1681,6 +1687,8 @@ ${error?.message ?? String(error)}`
             </section>
           )}
 
+          {/* STATUS */}
+
           <section className="mt-5 rounded-[28px] bg-slate-950 p-5 shadow-xl sm:p-6">
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1695,8 +1703,7 @@ ${error?.message ?? String(error)}`
                   {steps.length === 0
                     ? "Ready when you are"
                     : `${steps.length} step${
-                        steps.length ===
-                        1
+                        steps.length === 1
                           ? ""
                           : "s"
                       } configured`}
@@ -1765,6 +1772,10 @@ ${error?.message ?? String(error)}`
   );
 }
 
+// =============================================
+// JSON EDITOR
+// =============================================
+
 function JsonEditor({
   label,
   value,
@@ -1816,6 +1827,10 @@ function JsonEditor({
   );
 }
 
+// =============================================
+// STEP SELECTOR
+// =============================================
+
 function StepSelector({
   label,
   value,
@@ -1855,9 +1870,7 @@ function StepSelector({
           <option
             key={`${label}-${index}`}
             value={index + 1}
-            disabled={
-              index === currentIndex
-            }
+            disabled={index === currentIndex}
           >
             Step {index + 1} — {step.name}
           </option>
