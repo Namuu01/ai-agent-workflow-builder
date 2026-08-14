@@ -1,36 +1,140 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Agent Workflow Builder
 
-## Getting Started
+A full-stack, multi-tenant AI workflow orchestration platform inspired by tools like **n8n**, but purpose-built for chaining **AI-agent steps**.  
+Built with **Nhost + Hasura + PostgreSQL + GraphQL**, a **Next.js/React frontend**, and a **Python backend execution service**.
 
-First, run the development server:
+---
+
+## 🚀 Features
+
+- Create and edit AI workflows
+- Add and reorder workflow steps
+- Attach manual and event-driven triggers
+- Execute workflows through secured API boundaries
+- Call LLM providers (e.g., Groq)
+- Call external HTTP APIs
+- Branch execution based on outputs
+- Persist workflow results
+- Pause/resume execution at approval gates
+- Live step execution via GraphQL subscriptions
+- Monitor organization usage/quota
+
+---
+
+
+---
+
+## ⚙️ Tech Stack
+
+**Frontend**
+- Next.js 15
+- React + TypeScript
+- Nhost Authentication
+- GraphQL
+- CSS / App Router
+
+**Backend**
+- Python + FastAPI
+- Workflow Execution Engine
+- Hasura GraphQL Integration
+
+**Data / Infra**
+- Nhost
+- Hasura GraphQL Engine
+- PostgreSQL
+
+---
+
+## 📚 Core Domain Model
+
+- **Organization**
+  - Members (owner, editor, viewer)
+  - Workflows
+    - Workflow Steps
+    - Workflow Triggers
+    - Workflow Runs → Step Runs
+
+---
+
+## 🔑 Workflow Step Types
+
+- `llm_call` → Call LLM provider
+- `http_request` → Outbound HTTP request
+- `db_write` → Persist results (owner-only)
+- `notify` → External notification (owner-only)
+- `conditional_branch` → Branch execution
+- `approval_gate` → Pause until approval
+
+---
+
+## 🔒 Authorization Model
+
+- **Layer 1 — Organization + Role**
+  - Owner → Full control
+  - Editor → Create/edit workflows, approve steps
+  - Viewer → Read-only
+
+- **Layer 2 — Step-Level Authorization**
+  - Sensitive steps (`db_write`, `notify`, `webhook`) restricted to owners
+  - Approval checked at execution time
+
+---
+
+## ▶️ Workflow Execution
+
+1. Authenticate user
+2. Verify org membership + role
+3. Check quota
+4. Create workflow run
+5. Execute steps sequentially
+6. Pause at approval gates
+7. Resume after approval
+8. Persist run state
+9. Update usage counters
+
+---
+
+## 📡 GraphQL Operations
+
+- **Queries** → Workflows, steps, triggers, latest run status
+- **Mutations** → Create/edit workflows, steps, triggers
+- **Approval Mutation** → Approve paused steps
+- **Subscriptions** → Live step run updates
+
+---
+
+## 🔔 Triggers
+
+- Manual (UI Run button)
+- Webhook (Hasura Action)
+- Scheduled (cron-like)
+- Database Event (Hasura Event Trigger)
+
+---
+
+## 🖥️ Frontend Features
+
+- Nhost authentication
+- Organization-aware workflow builder
+- Step + trigger management
+- Workflow execution + run history
+- Live step status
+- Approval UI
+- Usage/quota display
+
+---
+
+## 🛠️ Local Development
+
+### Prerequisites
+- Node.js 20+
+- Python 3.10+
+- Nhost project
+- Hasura/PostgreSQL
+- LLM provider API key
+
+### Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+git clone https://github.com/Namuu01/ai-agent-workflow-builder.git
+cd ai-agent-workflow-builder
