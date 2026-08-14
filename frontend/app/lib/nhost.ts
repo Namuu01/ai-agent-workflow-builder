@@ -3,11 +3,13 @@ import { createClient } from "@nhost/nhost-js";
 const subdomain = process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN;
 const region = process.env.NEXT_PUBLIC_NHOST_REGION;
 
-console.log("🔥 NHOST CONFIG");
-console.log("Subdomain:", subdomain);
-console.log("Region:", region);
+if (!subdomain || !region) {
+  throw new Error(
+    "Missing NEXT_PUBLIC_NHOST_SUBDOMAIN or NEXT_PUBLIC_NHOST_REGION"
+  );
+}
 
 export const nhost = createClient({
-  subdomain: subdomain!,
-  region: region!,
+  subdomain,
+  region,
 });
