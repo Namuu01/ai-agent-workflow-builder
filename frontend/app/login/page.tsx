@@ -17,9 +17,9 @@ export default function LoginPage() {
   useEffect(() => {
     let mounted = true;
 
-    async function checkSession() {
+    function checkSession() {
       try {
-        const session = await nhost.auth.getSession();
+        const session = nhost.getUserSession();
 
         if (mounted && session) {
           router.replace("/builder");
@@ -46,7 +46,9 @@ export default function LoginPage() {
 
     setError("");
 
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
       setError("Please enter your email and password.");
       return;
     }
@@ -54,13 +56,15 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await nhost.auth.signInEmailPassword({
-        email: email.trim(),
+      await nhost.auth.signInEmailPassword({
+        email: cleanEmail,
         password,
       });
 
-      if (result.error) {
-        setError(result.error.message);
+      const session = nhost.getUserSession();
+
+      if (!session) {
+        setError("Unable to create a session. Please check your credentials.");
         return;
       }
 
@@ -69,7 +73,7 @@ export default function LoginPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to sign in. Please try again."
+          : "Invalid email or password. Please try again."
       );
     } finally {
       setLoading(false);
@@ -81,7 +85,9 @@ export default function LoginPage() {
       <main className="auth-page">
         <div className="auth-card">
           <div className="auth-brand">AI WORKFLOW STUDIO</div>
+
           <h1>Checking session...</h1>
+
           <p className="auth-subtitle">
             Please wait while we verify your authentication.
           </p>
